@@ -5,7 +5,8 @@ metadata:
 spec:
   ports:
   - port: 9092
+    nodePort: 30000
     name: kafka-broker
   selector:
     app: kafka
-  type: ClusterIP
+  type: NodePort 

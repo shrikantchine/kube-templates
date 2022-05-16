@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: zookeeper
+    app.kubernetes.io/instance: release
+    app.kubernetes.io/name: zk-svc
+  name: zk-svc
+  namespace: default
+spec:
+  type: ClusterIP
+  ports:
+  - name: tcp-client
+    port: 2181
+    protocol: TCP
+    targetPort: tcp-client
+  - name: tcp-server
+    port: 2888
+    protocol: TCP
+    targetPort: tcp-server
+  - name: tcp-election
+    port: 3888
+    protocol: TCP
+    targetPort: tcp-election
+  selector:
+    app.kubernetes.io/component: zookeeper
+    app.kubernetes.io/instance: release
+    app.kubernetes.io/name: zk
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: zookeeper
+    app.kubernetes.io/instance: release
+    app.kubernetes.io/name: zk-svc-headless
+  name: zk-svc-headless
+  namespace: default
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: tcp-client
+    port: 2181
+    protocol: TCP
+    targetPort: tcp-client
+  - name: tcp-server
+    port: 2888
+    protocol: TCP
+    targetPort: tcp-server
+  - name: tcp-election
+    port: 3888
+    protocol: TCP
+    targetPort: tcp-election
+  selector:
+    app.kubernetes.io/component: zookeeper
+    app.kubernetes.io/instance: release
+    app.kubernetes.io/name: zk
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/component: zookeeper
+    app.kubernetes.io/instance: release
+    app.kubernetes.io/name: zk-cfg
+  name: zk-cfg
+data:
+  setup.sh: |-
+    #!/bin/bash
+    if [[ -f "/bitnami/zookeeper/data/myid" ]]; then
+      export ZOO_SERVER_ID="$(cat /bitnami/zookeeper/data/myid)"
+    else
+      HOSTNAME="$(hostname -s)"
+      if [[ $HOSTNAME =~ (.*)-([0-9]+)$ ]]; then
+        ORD=${BASH_REMATCH[2]}
+        export ZOO_SERVER_ID="$((ORD + 1))"
+      else
+        echo "Failed to get index from hostname"
+        exit 1
+      fi
+    fi
+    exec /entrypoint.sh /run.sh
+
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.kubernetes.io/component: zookeeper
+    app.kubernetes.io/instance: release
+    app.kubernetes.io/name: zk
+  name: zk
+  namespace: default
+spec:
+  replicas: 3
+  serviceName: zk-svc-headless
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: zookeeper
+      app.kubernetes.io/instance: release
+      app.kubernetes.io/name: zk
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: zookeeper
+        app.kubernetes.io/instance: release
+        app.kubernetes.io/name: zk
+    spec:
+      containers:
+      - name: zookeeper
+        image: bitnami/zookeeper:3.8.0-debian-10-r37
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 2181
+          name: tcp-client
+          protocol: TCP
+        - containerPort: 2888
+          name: tcp-server
+          protocol: TCP
+        - containerPort: 3888
+          name: tcp-election
+          protocol: TCP
+        env:
+        - name: ZOO_TICK_TIME
+          value: "2000"
+        - name: ZOO_INIT_LIMIT
+          value: "10"
+        - name: ZOO_SYNC_LIMIT
+          value: "5"
+        - name: ZOO_MAX_CLIENT_CNXNS
+          value: "60"
+        - name: ZOO_ENABLE_AUTH
+          value: "no"
+        - name: ALLOW_ANONYMOUS_LOGIN
+          value: "yes"
+        - name: ZOO_SERVERS
+          value: zk-0.zk-svc-headless.default.svc.cluster.local:2888:3888::1
+            zk-1.zk-svc-headless.default.svc.cluster.local:2888:3888::2
+            zk-2.zk-svc-headless.default.svc.cluster.local:2888:3888::3
+        command:
+        - /scripts/setup.sh
+        volumeMounts:
+        - mountPath: /scripts/setup.sh
+          name: scripts
+          subPath: setup.sh
+      volumes:
+      - configMap:
+          defaultMode: 493
+          name: zk-cfg
+        name: scripts
+  
+

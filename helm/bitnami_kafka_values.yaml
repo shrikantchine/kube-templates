@@ -1,0 +1,6 @@
+# helm repo add bitnami https://charts.bitnami.com/bitnami
+# helm install my-release --values=bitnami_kafka_values.yaml bitnami/kafka
+
+zookeeper:
+  replicaCount: 3
+replicaCount: 3

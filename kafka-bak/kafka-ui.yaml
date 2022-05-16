@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-ui
+  labels:
+    app: kafka-ui
+spec:
+  selector:
+    matchLabels:
+      app: kafka-ui
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: kafka-ui
+    spec:
+      containers:
+        - name: kafka-ui
+          image: provectuslabs/kafka-ui
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: local
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+              value: kafka-svc:9092
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-ui-svc
+  labels:
+    app: kafka-ui-svc
+spec:
+  ports:
+  - port: 8080
+    name: ui-port
+  type: LoadBalancer
+  selector:
+    app: kakfa-ui
